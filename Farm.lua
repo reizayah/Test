@@ -3,9 +3,20 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
 
 print("Script starting...")
 print("Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): 2025-02-17 07:38:26")
+
+local queueteleport = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport)
+local TeleportCheck = false
+
+Players.LocalPlayer.OnTeleport:Connect(function(State)
+    if (not TeleportCheck) and queueteleport then
+        TeleportCheck = true
+        queueteleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/reizayah/Test/refs/heads/main/Farm.lua'))()")
+    end
+end)
 
 -- Handle loading screen first
 local function handleLoadingScreen()
@@ -167,13 +178,6 @@ local function serverHop()
     if #servers > 0 then
         lastServerHop = currentTime
         local randomServer = servers[math.random(1, #servers)]
-        
-        -- Queue the script to run after teleport
-        game:GetService("TeleportService"):queue_on_teleport([[
-            task.wait(1) -- Wait for game to load
-            loadstring(game:HttpGet('https://raw.githubusercontent.com/reizayah/Test/refs/heads/main/Farm.lua'))()
-        ]])
-        
         print("Teleporting to server:", randomServer)
         TeleportService:TeleportToPlaceInstance(game.PlaceId, randomServer)
     else

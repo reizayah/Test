@@ -14,7 +14,15 @@ local TeleportCheck = false
 Players.LocalPlayer.OnTeleport:Connect(function(State)
     if (not TeleportCheck) and queueteleport then
         TeleportCheck = true
-        queueteleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/reizayah/Test/refs/heads/main/Farm.lua'))()")
+        queueteleport([[
+            task.wait(5) -- Wait for game to load
+            repeat task.wait() until game:IsLoaded()
+            repeat task.wait() until game.Players.LocalPlayer
+            repeat task.wait() until game.Players.LocalPlayer.Character
+            repeat task.wait() until game:GetService("Players").LocalPlayer.Character:FindFirstChild("Humanoid")
+            
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/reizayah/Test/refs/heads/main/Farm.lua'))()
+        ]])
     end
 end)
 

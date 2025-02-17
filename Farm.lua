@@ -6,17 +6,35 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
 print("Script starting...")
-print("Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): 2025-02-17 23:01:26")
-print("Current User's Login: reizayah")
+print("Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): 2025-02-17 07:38:26")
 
--- Script monitoring flags
-local scriptRunning = false
-local lastMoneyCheck = 0
-local SCRIPT_CHECK_INTERVAL = 10 -- Check every 10 seconds
-
--- Auto-execute setup
 local queueteleport = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport)
 local TeleportCheck = false
+
+Players.LocalPlayer.OnTeleport:Connect(function(State)
+    if (not TeleportCheck) and queueteleport then
+        TeleportCheck = true
+        queueteleport([[
+            task.wait(5) -- Wait for game to load
+            repeat task.wait() until game:IsLoaded()
+            repeat task.wait() until game.Players.LocalPlayer
+            repeat task.wait() until game.Players.LocalPlayer.Character
+            repeat task.wait() until game:GetService("Players").LocalPlayer.Character:FindFirstChild("Humanoid")
+            
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/reizayah/Test/refs/heads/main/Farm.lua'))()
+        ]])
+    end
+end)
+
+local function waitForCharacter()
+    local player = game.Players.LocalPlayer
+    if not player.Character or not player.Character:FindFirstChild("Humanoid") then
+        player.CharacterAdded:Wait()
+        player.Character:WaitForChild("Humanoid")
+    end
+    return player.Character
+end
+
 
 -- Handle loading screen first
 local function handleLoadingScreen()
@@ -47,9 +65,13 @@ local function handleLoadingScreen()
             introFlag.Parent = game.ReplicatedStorage
         end
         
+        -- Wait for character before setting camera
+        local character = waitForCharacter()
+        local humanoid = character:WaitForChild("Humanoid")
+        
         local camera = workspace.CurrentCamera
         camera.CameraType = Enum.CameraType.Custom
-        camera.CameraSubject = player.Character:FindFirstChild("Humanoid")
+        camera.CameraSubject = humanoid
         
         local PlayerGui = player.PlayerGui
         local UIs = {
@@ -86,6 +108,41 @@ local function handleLoadingScreen()
     end
 end
 
+local function initializeMoneyModels()
+    local maxAttempts = 10
+    local attempts = 0
+    
+    while attempts < maxAttempts do
+        if Workspace:FindFirstChild("StudioPay") and 
+           Workspace.StudioPay:FindFirstChild("Money") then
+            local studioPayFolder = Workspace.StudioPay.Money
+            if studioPayFolder:FindFirstChild("StudioPay1") and
+               studioPayFolder:FindFirstChild("StudioPay2") and
+               studioPayFolder:FindFirstChild("StudioPay3") then
+                return {
+                    studioPayFolder.StudioPay1,
+                    studioPayFolder.StudioPay2,
+                    studioPayFolder.StudioPay3
+                }
+            end
+        end
+        attempts = attempts + 1
+        task.wait(1)
+    end
+    return nil
+end
+
+-- Handle loading screen before proceeding
+if not handleLoadingScreen() then
+    print("Failed to handle loading screen!")
+    return
+end
+
+local moneyModels = initializeMoneyModels()
+if not moneyModels then
+    print("Failed to initialize money models!")
+    return
+end
 -- Get all StudioPay models
 local studioPayFolder = Workspace.StudioPay.Money
 local moneyModels = {
@@ -96,65 +153,28 @@ local moneyModels = {
 
 -- Configuration
 local tweenInfo = TweenInfo.new(
-    4,
+    4, -- Duration
     Enum.EasingStyle.Linear,
     Enum.EasingDirection.Out
 )
 
 -- Server hop configuration
-local CHECKS_BEFORE_HOP = 10
+local CHECKS_BEFORE_HOP = 10 -- Number of empty checks before server hop
 local emptyChecks = 0
 local lastServerHop = 0
-local SERVER_HOP_COOLDOWN = 30
+local SERVER_HOP_COOLDOWN = 30 -- Seconds between server hop attempts
 local lastServerCheck = 0
-local SERVER_CHECK_COOLDOWN = 5
+local SERVER_CHECK_COOLDOWN = 5 -- Seconds between server list checks
 
 -- Tracking variables
 local isProcessingMoney = false
 local currentMoneyPart = nil
 
--- Function to check if script is working
-local function isScriptFunctional()
-    if not game.Players.LocalPlayer then return false end
-    if not game.Players.LocalPlayer.Character then return false end
-    if not game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then return false end
-    
-    if game.Players.LocalPlayer.PlayerGui:FindFirstChild("BronxLoadscreen") then
-        print("Loading screen still exists - script may not be functioning properly")
-        return false
-    end
-    
-    if tick() - lastMoneyCheck > 30 then
-        print("No money processing detected in last 30 seconds - script may be stuck")
-        return false
-    end
-    
-    return true
-end
-
--- Function to restart script components
-local function restartScriptComponents()
-    print("Attempting to restart script components...")
-    
-    isProcessingMoney = false
-    currentMoneyPart = nil
-    
-    if game.Players.LocalPlayer.PlayerGui:FindFirstChild("BronxLoadscreen") then
-        print("Re-handling loading screen...")
-        handleLoadingScreen()
-    end
-    
-    emptyChecks = 0
-    checkAllMoney()
-    
-    print("Script components restart attempted")
-end
-
 -- Function to get server list
 local function getServers()
     local currentTime = tick()
     if currentTime - lastServerCheck < SERVER_CHECK_COOLDOWN then
-        return {}
+        return {} -- Return empty if checking too frequently
     end
     lastServerCheck = currentTime
     
@@ -241,15 +261,15 @@ end
 -- Function to wait for money collection
 local function waitForMoneyCollection(moneyPart)
     local startTime = tick()
-    local maxWaitTime = 3
+    local maxWaitTime = 3 -- Wait 3 seconds for collection
     
     while moneyPart and moneyPart.Parent and moneyPart.Transparency == 0 do
         if tick() - startTime > maxWaitTime then
-            return false
+            return false -- Collection failed
         end
         task.wait(0.1)
     end
-    return true
+    return true -- Collection successful
 end
 
 -- Function to handle visible money
@@ -261,21 +281,25 @@ local function handleVisibleMoney(moneyPart)
     
     local prompt = moneyPart:FindFirstChild("Prompt")
     if prompt then
+        -- Set hold duration to 0
         prompt.HoldDuration = 0
+        prompt.RequiresLineOfSight = false
         
         local player = game.Players.LocalPlayer
         local character = player.Character
         if character then
-            local maxAttempts = 3
+            local maxAttempts = 3 -- Maximum number of collection attempts
             local attempts = 0
             
             while attempts < maxAttempts do
                 attempts = attempts + 1
                 
+                -- Tween to money
                 local tween = tweenToPosition(character, moneyPart.Position)
                 tween.Completed:Wait()
                 task.wait(0.5)
                 
+                -- Check position and try to collect
                 if isPlayerInCorrectPosition(character, moneyPart.Position) then
                     prompt:InputHoldBegin()
                     getgenv().AutoFarm = true
@@ -283,17 +307,18 @@ local function handleVisibleMoney(moneyPart)
                     local collected = waitForMoneyCollection(moneyPart)
                     if collected then
                         print("Money collected successfully!")
-                        emptyChecks = 0
-                        break
+                        emptyChecks = 0 -- Reset empty checks counter on successful collection
+                        break -- Exit the retry loop
                     else
                         print("Collection attempt " .. attempts .. " failed, retrying...")
-                        task.wait(0.5)
+                        task.wait(0.5) -- Wait before next attempt
                     end
                 else
                     print("Not in correct position, attempt " .. attempts .. ", retrying...")
-                    task.wait(0.5)
+                    task.wait(0.5) -- Wait before next attempt
                 end
                 
+                -- If money is no longer visible, break the loop
                 if not moneyPart or not moneyPart.Parent or moneyPart.Transparency ~= 0 then
                     break
                 end
@@ -309,11 +334,9 @@ local function handleVisibleMoney(moneyPart)
     currentMoneyPart = nil
 end
 
--- Function to check all money
+-- Main loop
 local function checkAllMoney()
     if isProcessingMoney then return end
-    
-    lastMoneyCheck = tick()
     
     if not isAnyMoneyVisible() then
         emptyChecks = emptyChecks + 1
@@ -334,49 +357,6 @@ local function checkAllMoney()
     end
 end
 
--- Start script monitoring system
-local function startScriptMonitoring()
-    local heartbeat = game:GetService("RunService").Heartbeat
-    
-    heartbeat:Connect(function()
-        if scriptRunning and tick() % SCRIPT_CHECK_INTERVAL < 1 then
-            if not isScriptFunctional() then
-                print("Script dysfunction detected - attempting recovery...")
-                restartScriptComponents()
-            end
-        end
-    end)
-end
-
--- Initialize script
-local function initializeScript()
-    if handleLoadingScreen() then
-        scriptRunning = true
-        startScriptMonitoring()
-        print("Script monitoring system initialized!")
-    else
-        print("Failed to initialize script - loading screen handling failed!")
-        task.wait(5)
-        initializeScript()
-    end
-end
-
--- Set up auto-execution after teleport
-Players.LocalPlayer.OnTeleport:Connect(function(State)
-    if (not TeleportCheck) and queueteleport then
-        TeleportCheck = true
-        queueteleport([[
-            task.wait(5)
-            repeat task.wait() until game:IsLoaded()
-            repeat task.wait() until game.Players.LocalPlayer
-            repeat task.wait() until game.Players.LocalPlayer.Character
-            repeat task.wait() until game:GetService("Players").LocalPlayer.Character:FindFirstChild("Humanoid")
-            
-            loadstring(game:HttpGet('https://raw.githubusercontent.com/reizayah/Test/refs/heads/main/Farm.lua'))()
-        ]])
-    end
-end)
-
 -- Set up continuous checking
 RunService.Heartbeat:Connect(function()
     checkAllMoney()
@@ -387,8 +367,5 @@ TeleportService.TeleportInitFailed:Connect(function()
     task.wait(SERVER_HOP_COOLDOWN)
     serverHop()
 end)
-
--- Start the script
-initializeScript()
 
 print("Script initialization complete!")

@@ -168,6 +168,13 @@ local function serverHop()
     if #servers > 0 then
         lastServerHop = currentTime
         local randomServer = servers[math.random(1, #servers)]
+        
+        -- Queue the script to run after teleport
+        game:GetService("TeleportService"):queue_on_teleport([[
+            task.wait(1) -- Wait for game to load
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/reizayah/Test/refs/heads/main/Farm.lua'))()
+        ]])
+        
         print("Teleporting to server:", randomServer)
         TeleportService:TeleportToPlaceInstance(game.PlaceId, randomServer)
     else

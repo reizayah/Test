@@ -6,7 +6,6 @@ local HttpService = game:GetService("HttpService")
 
 print("Script starting...")
 print("Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): 2025-02-17 07:38:26")
-print("Current User's Login: reizayah")
 
 -- Handle loading screen first
 local function handleLoadingScreen()

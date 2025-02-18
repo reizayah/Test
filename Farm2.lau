@@ -32,7 +32,7 @@ Players.LocalPlayer.OnTeleport:Connect(function(State)
             repeat task.wait() until game.Players.LocalPlayer.Character
             repeat task.wait() until game:GetService("Players").LocalPlayer.Character:FindFirstChild("Humanoid")
             
-            loadstring(game:HttpGet('https://raw.githubusercontent.com/reizayah/Test/refs/heads/main/Farm.lua'))()
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/reizayah/Test/refs/heads/main/Farm2.lua'))()
         ]])
     end
 end)

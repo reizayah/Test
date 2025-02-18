@@ -35,18 +35,6 @@ local function waitForCharacter()
     end
     return player.Character
 end
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.K then
-        print("Force server hop triggered by user")
-        -- Reset cooldowns to allow immediate hop
-        lastServerHop = 0
-        lastServerCheck = 0
-        -- Call server hop
-        serverHop()
-    end
-end)
-
 -- Handle loading screen first
 local function handleLoadingScreen()
     print("Waiting for loading screen...")
@@ -236,6 +224,18 @@ local function serverHop()
         print("No suitable servers found or rate limit hit. Will retry later.")
     end
 end
+
+-- Force Server Hop
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.K then
+        print("Force server hop triggered by user")
+        -- Reset cooldowns to allow immediate hop
+        lastServerHop = 0
+        lastServerCheck = 0
+        -- Call server hop
+        serverHop()
+    end
+end)
 
 -- Function to check for any visible money
 local function isAnyMoneyVisible()

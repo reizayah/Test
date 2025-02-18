@@ -283,6 +283,23 @@ local function waitForMoneyCollection(moneyPart)
     return true -- Collection successful
 end
 
+--Function to check for the prompt
+local function waitForMoneyPrompt(moneyPart, maxWaitTime)
+    maxWaitTime = maxWaitTime or 5 -- Default 5 seconds wait time
+    local startTime = tick()
+    
+    -- Check if money is still valid and visible
+    while moneyPart and moneyPart.Parent and moneyPart.Transparency == 0 and (tick() - startTime) < maxWaitTime do
+        local prompt = moneyPart:FindFirstChild("Prompt")
+        if prompt then
+            return prompt
+        end
+        task.wait(0.1)
+    end
+    
+    return nil
+end
+
 -- Function to handle visible money
 local function handleVisibleMoney(moneyPart)
     if isProcessingMoney then return end
@@ -290,7 +307,8 @@ local function handleVisibleMoney(moneyPart)
     isProcessingMoney = true
     currentMoneyPart = moneyPart
     
-    local prompt = moneyPart:FindFirstChild("Prompt")
+    -- Use the helper function to wait for prompt
+    local prompt = waitForMoneyPrompt(moneyPart)
     if prompt then
         -- Set hold duration to 0
         prompt.HoldDuration = 0
@@ -304,6 +322,13 @@ local function handleVisibleMoney(moneyPart)
             
             while attempts < maxAttempts do
                 attempts = attempts + 1
+                
+                -- Recheck prompt before each attempt
+                prompt = waitForMoneyPrompt(moneyPart, 2) -- Shorter timeout for rechecks
+                if not prompt then
+                    print("Lost prompt during collection attempt")
+                    break
+                end
                 
                 -- Tween to money
                 local tween = tweenToPosition(character, moneyPart.Position)
@@ -339,6 +364,8 @@ local function handleVisibleMoney(moneyPart)
                 print("Failed to collect money after " .. maxAttempts .. " attempts")
             end
         end
+    else
+        print("No prompt found after waiting - skipping this money part")
     end
     
     isProcessingMoney = false

@@ -1,6 +1,7 @@
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -35,6 +36,16 @@ local function waitForCharacter()
     return player.Character
 end
 
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.K then
+        print("Force server hop triggered by user")
+        -- Reset cooldowns to allow immediate hop
+        lastServerHop = 0
+        lastServerCheck = 0
+        -- Call server hop
+        serverHop()
+    end
+end)
 
 -- Handle loading screen first
 local function handleLoadingScreen()

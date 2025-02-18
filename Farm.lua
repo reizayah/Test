@@ -312,6 +312,7 @@ local function waitForMoneyPrompt(moneyPart, maxWaitTime)
         -- Add delay between checks to prevent excessive processing
         if attempts >= maxAttempts then
             print("Max prompt detection attempts reached")
+             serverHop()
             break
         end
         

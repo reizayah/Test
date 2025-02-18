@@ -287,90 +287,158 @@ end
 local function waitForMoneyPrompt(moneyPart, maxWaitTime)
     maxWaitTime = maxWaitTime or 5 -- Default 5 seconds wait time
     local startTime = tick()
+    local attempts = 0
+    local maxAttempts = 10 -- Maximum number of prompt check attempts
+    
+    print("Starting prompt detection for money part")
+    
+    -- Validation checks
+    if not moneyPart or not moneyPart.Parent then
+        print("Invalid money part provided to waitForMoneyPrompt")
+        return nil
+    end
     
     -- Check if money is still valid and visible
     while moneyPart and moneyPart.Parent and moneyPart.Transparency == 0 and (tick() - startTime) < maxWaitTime do
+        attempts = attempts + 1
+        
+        -- Check for the prompt
         local prompt = moneyPart:FindFirstChild("Prompt")
         if prompt then
+            print("Prompt found successfully")
             return prompt
         end
+        
+        -- Add delay between checks to prevent excessive processing
+        if attempts >= maxAttempts then
+            print("Max prompt detection attempts reached")
+            break
+        end
+        
         task.wait(0.1)
+    end
+    
+    -- Detailed logging for debugging
+    if tick() - startTime >= maxWaitTime then
+        print("Prompt detection timed out after", maxWaitTime, "seconds")
+    elseif not moneyPart or not moneyPart.Parent then
+        print("Money part became invalid during prompt detection")
+    elseif moneyPart.Transparency ~= 0 then
+        print("Money part became transparent during prompt detection")
     end
     
     return nil
 end
 
--- Function to handle visible money
+-- Improved handleVisibleMoney function with better error handling
 local function handleVisibleMoney(moneyPart)
-    if isProcessingMoney then return end
+    if isProcessingMoney then 
+        print("Already processing money, skipping")
+        return 
+    end
     
     isProcessingMoney = true
     currentMoneyPart = moneyPart
     
-    -- Use the helper function to wait for prompt
-    local prompt = waitForMoneyPrompt(moneyPart)
-    if prompt then
-        -- Set hold duration to 0
-        prompt.HoldDuration = 0
-        prompt.RequiresLineOfSight = false
-        
-        local player = game.Players.LocalPlayer
-        local character = player.Character
-        if character then
-            local maxAttempts = 3 -- Maximum number of collection attempts
-            local attempts = 0
+    -- Wrap in pcall to prevent script freezing
+    local success, result = pcall(function()
+        -- Use the helper function to wait for prompt
+        local prompt = waitForMoneyPrompt(moneyPart)
+        if prompt then
+            -- Set hold duration to 0
+            prompt.HoldDuration = 0
+            prompt.RequiresLineOfSight = false
             
-            while attempts < maxAttempts do
-                attempts = attempts + 1
+            local player = game.Players.LocalPlayer
+            local character = player.Character
+            if character then
+                local maxAttempts = 3 -- Maximum number of collection attempts
+                local attempts = 0
                 
-                -- Recheck prompt before each attempt
-                prompt = waitForMoneyPrompt(moneyPart, 2) -- Shorter timeout for rechecks
-                if not prompt then
-                    print("Lost prompt during collection attempt")
-                    break
-                end
-                
-                -- Tween to money
-                local tween = tweenToPosition(character, moneyPart.Position)
-                tween.Completed:Wait()
-                task.wait(0.5)
-                
-                -- Check position and try to collect
-                if isPlayerInCorrectPosition(character, moneyPart.Position) then
-                    prompt:InputHoldBegin()
-                    getgenv().AutoFarm = true
+                while attempts < maxAttempts do
+                    attempts = attempts + 1
+                    print("Collection attempt", attempts)
                     
-                    local collected = waitForMoneyCollection(moneyPart)
-                    if collected then
-                        print("Money collected successfully!")
-                        emptyChecks = 0 -- Reset empty checks counter on successful collection
-                        break -- Exit the retry loop
-                    else
-                        print("Collection attempt " .. attempts .. " failed, retrying...")
-                        task.wait(0.5) -- Wait before next attempt
+                    -- Recheck prompt before each attempt with shorter timeout
+                    local promptRecheck = waitForMoneyPrompt(moneyPart, 2)
+                    if not promptRecheck then
+                        print("Lost prompt during collection attempt")
+                        break
                     end
-                else
-                    print("Not in correct position, attempt " .. attempts .. ", retrying...")
-                    task.wait(0.5) -- Wait before next attempt
-                end
-                
-                -- If money is no longer visible, break the loop
-                if not moneyPart or not moneyPart.Parent or moneyPart.Transparency ~= 0 then
-                    break
+                    
+                    -- Tween to money with error handling
+                    local tweenSuccess, tween = pcall(function()
+                        return tweenToPosition(character, moneyPart.Position)
+                    end)
+                    
+                    if tweenSuccess and tween then
+                        tween.Completed:Wait()
+                        task.wait(0.5)
+                        
+                        -- Check position and try to collect
+                        if isPlayerInCorrectPosition(character, moneyPart.Position) then
+                            promptRecheck:InputHoldBegin()
+                            getgenv().AutoFarm = true
+                            
+                            local collected = waitForMoneyCollection(moneyPart)
+                            if collected then
+                                print("Money collected successfully!")
+                                emptyChecks = 0 -- Reset empty checks counter
+                                break
+                            else
+                                print("Collection attempt", attempts, "failed, retrying...")
+                                task.wait(0.5)
+                            end
+                        else
+                            print("Not in correct position, attempt", attempts)
+                            task.wait(0.5)
+                        end
+                    else
+                        print("Tween creation failed:", tween)
+                        task.wait(0.5)
+                    end
+                    
+                    -- Break if money part becomes invalid
+                    if not moneyPart or not moneyPart.Parent or moneyPart.Transparency ~= 0 then
+                        print("Money part became invalid during collection")
+                        break
+                    end
                 end
             end
-            
-            if attempts >= maxAttempts then
-                print("Failed to collect money after " .. maxAttempts .. " attempts")
-            end
+        else
+            print("No prompt found - moving to next money part")
         end
-    else
-        print("No prompt found after waiting - skipping this money part")
+    end)
+    
+    if not success then
+        print("Error in handleVisibleMoney:", result)
     end
     
     isProcessingMoney = false
     currentMoneyPart = nil
+    task.wait(0.1) -- Add small delay before next processing
 end
+
+-- Add failsafe timer to prevent infinite processing
+local function startFailsafeTimer()
+    local MAX_PROCESSING_TIME = 10 -- Maximum time in seconds for processing money
+    
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if isProcessingMoney then
+                if tick() - lastProcessingStart > MAX_PROCESSING_TIME then
+                    print("Failsafe: Processing took too long, resetting state")
+                    isProcessingMoney = false
+                    currentMoneyPart = nil
+                end
+            end
+        end
+    end)
+end
+
+-- Initialize failsafe timer
+startFailsafeTimer()
 
 -- Main loop
 local function checkAllMoney()
